@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use diesel::{
     connection::SimpleConnection,
     dsl::Limit,
@@ -56,7 +55,7 @@ impl StdError for AsyncError {
     }
 }
 
-#[async_trait]
+#[async_trait_with_sync::async_trait(Sync)]
 pub trait AsyncSimpleConnection<Conn>
 where
     Conn: 'static + SimpleConnection,
@@ -64,7 +63,7 @@ where
     async fn batch_execute_async(&self, query: &str) -> AsyncResult<()>;
 }
 
-#[async_trait]
+#[async_trait_with_sync::async_trait(Sync)]
 impl<Conn> AsyncSimpleConnection<Conn> for Pool<ConnectionManager<Conn>>
 where
     Conn: 'static + Connection,
@@ -80,7 +79,7 @@ where
     }
 }
 
-#[async_trait]
+#[async_trait_with_sync::async_trait(Sync)]
 pub trait AsyncConnection<Conn>: AsyncSimpleConnection<Conn>
 where
     Conn: 'static + Connection,
@@ -88,15 +87,15 @@ where
     async fn run<R, Func>(&self, f: Func) -> AsyncResult<R>
     where
         R: Send,
-        Func: FnOnce(&Conn) -> QueryResult<R> + Send;
+        Func: FnOnce(&Conn) -> QueryResult<R> + Send + Sync;
 
     async fn transaction<R, Func>(&self, f: Func) -> AsyncResult<R>
     where
         R: Send,
-        Func: FnOnce(&Conn) -> QueryResult<R> + Send;
+        Func: FnOnce(&Conn) -> QueryResult<R> + Send + Sync;
 }
 
-#[async_trait]
+#[async_trait_with_sync::async_trait(Sync)]
 impl<Conn> AsyncConnection<Conn> for Pool<ConnectionManager<Conn>>
 where
     Conn: 'static + Connection,
@@ -105,7 +104,7 @@ where
     async fn run<R, Func>(&self, f: Func) -> AsyncResult<R>
     where
         R: Send,
-        Func: FnOnce(&Conn) -> QueryResult<R> + Send,
+        Func: FnOnce(&Conn) -> QueryResult<R> + Send + Sync,
     {
         let self_ = self.clone();
         task::block_in_place(move || {
@@ -118,7 +117,7 @@ where
     async fn transaction<R, Func>(&self, f: Func) -> AsyncResult<R>
     where
         R: Send,
-        Func: FnOnce(&Conn) -> QueryResult<R> + Send,
+        Func: FnOnce(&Conn) -> QueryResult<R> + Send + Sync,
     {
         let self_ = self.clone();
         task::block_in_place(move || {
@@ -128,7 +127,7 @@ where
     }
 }
 
-#[async_trait]
+#[async_trait_with_sync::async_trait(Sync)]
 pub trait AsyncRunQueryDsl<Conn, AsyncConn>
 where
     Conn: 'static + Connection,
@@ -154,15 +153,15 @@ where
 
     async fn first_async<U>(self, asc: &AsyncConn) -> AsyncResult<U>
     where
-        U: Send,
+        U: Send + Sync,
         Self: LimitDsl,
         Limit<Self>: LoadQuery<Conn, U>;
 }
 
-#[async_trait]
+#[async_trait_with_sync::async_trait(Sync)]
 impl<T, Conn> AsyncRunQueryDsl<Conn, Pool<ConnectionManager<Conn>>> for T
 where
-    T: Send + RunQueryDsl<Conn>,
+    T: Send + Sync + RunQueryDsl<Conn>,
     Conn: 'static + Connection,
 {
     async fn execute_async(self, asc: &Pool<ConnectionManager<Conn>>) -> AsyncResult<usize>
@@ -198,7 +197,7 @@ where
 
     async fn first_async<U>(self, asc: &Pool<ConnectionManager<Conn>>) -> AsyncResult<U>
     where
-        U: Send,
+        U: Send + Sync,
         Self: LimitDsl,
         Limit<Self>: LoadQuery<Conn, U>,
     {
